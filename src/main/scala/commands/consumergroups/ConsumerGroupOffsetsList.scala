@@ -17,7 +17,7 @@ object ConsumerGroupOffsetsList {
     nested <- ZIO.service[NestedConfig]
     client <- make(AdminClientSettings(cfg.bootstrapServers))
     listing <- groupId
-      .fold(client.listConsumerGroupsOffsets(nested.inputs.map(_.groupId)).tapError(err => ZIO.logError(s"$err")))(group => client.listConsumerGroupOffsets(group).tapError(err => ZIO.logError(s"$err")))
+      .fold(client.listConsumerGroupsOffsets(nested.groups.map(_.groupId)).tapError(err => ZIO.logError(s"$err")))(group => client.listConsumerGroupOffsets(group).tapError(err => ZIO.logError(s"$err")))
     metadata = listing.toList.sortBy(_._1).map(rec => s"groupId: ${rec._1}\n${rec._2.toList.sortBy(_._1.partition).map(data => s" topic: ${data._1.topic}, partition: ${data._1.partition}, offset: ${data._2.offset}, metadata: ${data._2.metadata}").mkString("\n")}").mkString("\n")
     _ <- Console.printLine(s"$metadata")
     _ <- client.close

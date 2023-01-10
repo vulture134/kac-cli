@@ -17,8 +17,8 @@ object TopicCreate {
     nested <- ZIO.service[NestedConfig]
     client <- make(AdminClientSettings(cfg.bootstrapServers))
     _ <- name
-      .fold(client.createTopics(nested.inputs.map(_.newTopic)).tapError(err => ZIO.logError(s"$err")))(topicName => client.createTopic(NewTopic(topicName, numPartitions, replicationFactor.map(x => java.lang.Short.valueOf(x)), configs.getOrElse(Map.empty[String, String]))).tapError(err => ZIO.logError(s"$err")))
-    _ <- Console.printLine(s"Created topic(s) ${name.fold(nested.inputs.map(_.topicName).mkString(","))(topicName => s"$topicName")} unless it(they) existed already")
+      .fold(client.createTopics(nested.topics.map(_.newTopic)).tapError(err => ZIO.logError(s"$err")))(topicName => client.createTopic(NewTopic(topicName, numPartitions, replicationFactor.map(x => java.lang.Short.valueOf(x)), configs.getOrElse(Map.empty[String, String]))).tapError(err => ZIO.logError(s"$err")))
+    _ <- Console.printLine(s"Created topic(s) ${name.fold(nested.topics.map(_.topicName).mkString(","))(topicName => s"$topicName")} unless it(they) existed already")
     _ <- client.close
   } yield ExitCode.success
 

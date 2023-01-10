@@ -17,8 +17,8 @@ object ConsumerGroupAlterOffsets {
     nested <- ZIO.service[NestedConfig]
     client <- make(AdminClientSettings(cfg.bootstrapServers))
     _ <- groupId
-        .fold(ZIO.foreach(nested.inputs)(config => client.alterConsumerGroupOffsets(config.groupId, config.topicName, config.offsets.map(rec => (rec._1.toInt, rec._2.toLong))).tapError(err => ZIO.logError(s"$err"))))(group => client.alterConsumerGroupOffsets(group, topic.getOrElse("LostTopic"), offsets.getOrElse(Map.empty[Int, Long])).tapError(err => ZIO.logError(s"$err")))
-    _ <- Console.printLine(s"Altered offsets of consumer group(s) ${groupId.fold(nested.inputs.map(_.groupId).mkString(","))(group => s"$group")} unless this(these) consumer group(s) didn't exist")
+        .fold(ZIO.foreach(nested.groups)(config => client.alterConsumerGroupOffsets(config.groupId, config.topicName, config.offsets.map(rec => (rec._1.toInt, rec._2.toLong))).tapError(err => ZIO.logError(s"$err"))))(group => client.alterConsumerGroupOffsets(group, topic.getOrElse("LostTopic"), offsets.getOrElse(Map.empty[Int, Long])).tapError(err => ZIO.logError(s"$err")))
+    _ <- Console.printLine(s"Altered offsets of consumer group(s) ${groupId.fold(nested.groups.map(_.groupId).mkString(","))(group => s"$group")} unless this(these) consumer group(s) didn't exist")
     _ <- client.close
   } yield ExitCode.success
 

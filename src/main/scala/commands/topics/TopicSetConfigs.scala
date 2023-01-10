@@ -16,7 +16,7 @@ object TopicSetConfigs {
     cfg <- ZIO.service[Config]
     nested <- ZIO.service[NestedConfig]
     client <- make(AdminClientSettings(cfg.bootstrapServers))
-    conf = nested.inputs.map(cfg => (cfg.topicName, cfg.topicConfigs)).toMap
+    conf = nested.topics.map(cfg => (cfg.topicName, cfg.topicConfigs)).toMap
     _ <- name.fold(client.alterTopicsConfigs(conf).tapError(err => ZIO.logError(s"$err")))(topic => client.alterTopicConfigs(topic, configs.getOrElse(Map.empty[String, String])).tapError(err => ZIO.logError(s"$err")))
     _ <- Console.printLine(s"Reset configs of topic(s) ${name.fold(conf.keySet.mkString(","))(topicName => s"$topicName")} unless topics didn't exist")
     _ <- client.close

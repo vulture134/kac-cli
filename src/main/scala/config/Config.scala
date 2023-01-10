@@ -7,12 +7,14 @@ import zio.*
 
 case class Config (bootstrapServers: List[String]) derives ConfigReader
 
-case class NestedConfig (inputs: List[InputConfig]) derives ConfigReader
+case class NestedConfig (topics: List[InputConfig], groups: List[ConsumerGroupConfig]) derives ConfigReader
 
-case class InputConfig (groupId: String, topicName: String, numPartitions: Int, replicationFactor: Short, topicConfigs: Map[String, String], offsets: Map[String, String], date: String) derives ConfigReader
+case class InputConfig (topicName: String, numPartitions: Int, replicationFactor: Short, topicConfigs: Map[String, String]) derives ConfigReader
 {
   val newTopic: NewTopic = NewTopic(topicName, Some(numPartitions), Some(java.lang.Short.valueOf(replicationFactor)), topicConfigs)
 }
+
+case class ConsumerGroupConfig(groupId: String, topicName: String, offsets: Map[String, String], date: String) derives ConfigReader
 
 
 

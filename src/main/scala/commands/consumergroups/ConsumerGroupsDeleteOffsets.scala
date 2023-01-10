@@ -18,8 +18,8 @@ object ConsumerGroupsDeleteOffsets {
     nested <- ZIO.service[NestedConfig]
     client <- make(AdminClientSettings(cfg.bootstrapServers))
     _ <- groupId
-        .fold(ZIO.foreach(nested.inputs)(config => client.deleteConsumerGroupOffsets(config.groupId, config.topicName, config.offsets.keySet.map(_.toInt))).tapError(err => ZIO.logError(s"$err")))(group => client.deleteConsumerGroupOffsets(group, topic.getOrElse("LostTopic"), partitions.getOrElse(Set.empty[Int])).tapError(err => ZIO.logError(s"$err")))
-    _ <- Console.printLine(s"Deleted offsets of consumer group(s) ${groupId.fold(nested.inputs.map(_.groupId).mkString(","))(group => s"$group")} for the given topic partitions if this input combination existed")
+        .fold(ZIO.foreach(nested.groups)(config => client.deleteConsumerGroupOffsets(config.groupId, config.topicName, config.offsets.keySet.map(_.toInt))).tapError(err => ZIO.logError(s"$err")))(group => client.deleteConsumerGroupOffsets(group, topic.getOrElse("LostTopic"), partitions.getOrElse(Set.empty[Int])).tapError(err => ZIO.logError(s"$err")))
+    _ <- Console.printLine(s"Deleted offsets of consumer group(s) ${groupId.fold(nested.groups.map(_.groupId).mkString(","))(group => s"$group")} for the given topic partitions if this input combination existed")
     _ <- client.close
   } yield ExitCode.success
 

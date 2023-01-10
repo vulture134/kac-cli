@@ -17,8 +17,8 @@ object ConsumerGroupDelete {
     nested <- ZIO.service[NestedConfig]
     client <- make(AdminClientSettings(cfg.bootstrapServers))
     _ <- groupId
-      .fold(client.deleteConsumerGroups(nested.inputs.map(_.groupId)).tapError(err => ZIO.logError(s"$err")))(group => client.deleteConsumerGroup(group).tapError(err => ZIO.logError(s"$err")))
-    _ <- Console.printLine(s"Deleted consumer group(s) ${groupId.fold(nested.inputs.map(_.groupId).mkString(","))(group => s"$group")} if they(it) existed")
+      .fold(client.deleteConsumerGroups(nested.groups.map(_.groupId)).tapError(err => ZIO.logError(s"$err")))(group => client.deleteConsumerGroup(group).tapError(err => ZIO.logError(s"$err")))
+    _ <- Console.printLine(s"Deleted consumer group(s) ${groupId.fold(nested.groups.map(_.groupId).mkString(","))(group => s"$group")} if they(it) existed")
     _ <- client.close
   } yield ExitCode.success
 

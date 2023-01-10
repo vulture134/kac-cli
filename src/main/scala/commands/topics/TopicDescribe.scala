@@ -17,7 +17,7 @@ object TopicDescribe {
     nested <- ZIO.service[NestedConfig]
     client <- make(AdminClientSettings(cfg.bootstrapServers))
     description <- name
-      .fold(client.describeTopicsCustom(nested.inputs.map(_.topicName)).tapError(err => ZIO.logError(s"$err")))(topic => client.describeTopic(topic).map(List(_)).tapError(err => ZIO.logError(s"$err")))
+      .fold(client.describeTopicsCustom(nested.topics.map(_.topicName)).tapError(err => ZIO.logError(s"$err")))(topic => client.describeTopic(topic).map(List(_)).tapError(err => ZIO.logError(s"$err")))
     _ <- Console.printLine(description.sortBy(_.name).map(_.mkString).mkString("\n"))
     _ <- client.close
   } yield ExitCode.success

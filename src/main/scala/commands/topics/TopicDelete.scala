@@ -17,8 +17,8 @@ object TopicDelete {
     nested <- ZIO.service[NestedConfig]
     client <- make(AdminClientSettings(cfg.bootstrapServers))
     _ <- name
-      .fold(client.deleteTopics(nested.inputs.map(_.topicName)).tapError(err => ZIO.logError(s"$err")))(topicName => client.deleteTopic(topicName).tapError(err => ZIO.logError(s"$err")))
-    _ <- Console.printLine(s"Deleted topic(s) ${name.fold(nested.inputs.map(_.topicName).mkString(","))(topicName => s"$topicName")} if it(they) existed")
+      .fold(client.deleteTopics(nested.topics.map(_.topicName)).tapError(err => ZIO.logError(s"$err")))(topicName => client.deleteTopic(topicName).tapError(err => ZIO.logError(s"$err")))
+    _ <- Console.printLine(s"Deleted topic(s) ${name.fold(nested.topics.map(_.topicName).mkString(","))(topicName => s"$topicName")} if it(they) existed")
     _ <- client.close
   } yield ExitCode.success
 

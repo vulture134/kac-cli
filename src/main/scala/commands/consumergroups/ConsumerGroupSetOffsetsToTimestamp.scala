@@ -20,8 +20,8 @@ object ConsumerGroupSetOffsetsToTimestamp {
     nested <- ZIO.service[NestedConfig]
     client <- make(AdminClientSettings(cfg.bootstrapServers))
     _ <- groupId
-         .fold(ZIO.foreach(nested.inputs)(config => client.setConsumerGroupOffsetsToTimestamp(config.groupId, config.topicName, LocalDateTime.parse(config.date), cfg.bootstrapServers).tapError(err => ZIO.logError(s"$err"))))(group => client.setConsumerGroupOffsetsToTimestamp(group, topic.getOrElse("LostTopic"), date.getOrElse(LocalDateTime.now()), cfg.bootstrapServers).tapError(err => ZIO.logError(s"$err")))
-    _ <- Console.printLine(s"Altered offsets of consumer group ${groupId.fold(nested.inputs.map(_.groupId).mkString(","))(group => s"$group")} to the given timestamp unless this consumer group didn't exist")
+         .fold(ZIO.foreach(nested.groups)(config => client.setConsumerGroupOffsetsToTimestamp(config.groupId, config.topicName, LocalDateTime.parse(config.date), cfg.bootstrapServers).tapError(err => ZIO.logError(s"$err"))))(group => client.setConsumerGroupOffsetsToTimestamp(group, topic.getOrElse("LostTopic"), date.getOrElse(LocalDateTime.now()), cfg.bootstrapServers).tapError(err => ZIO.logError(s"$err")))
+    _ <- Console.printLine(s"Altered offsets of consumer group ${groupId.fold(nested.groups.map(_.groupId).mkString(","))(group => s"$group")} to the given timestamp unless this consumer group didn't exist")
     _ <- client.close
   } yield ExitCode.success
 
