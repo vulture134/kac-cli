@@ -50,6 +50,8 @@ trait AdminClient {
 
   def describeTopicsCustom(topics: List[String], configsDescOpts: Option[DescribeConfigsOptions] = None, topicDescOpts: Option[DescribeTopicsOptions] = None): Task[List[AggregatedTopicDescription]]
 
+  def describeConsumerGroup(groupId: String): ZIO[Consumer, Throwable, Map[String, Map[TopicPartition, AggregatedOffsetDescription]]]
+
   def incrementalAlterConfig(configs: Map[ConfigResource, Iterable[AlterConfigOperation]]): Task[Unit]
 
   def alterTopicConfigs(topic: String, input: Map[String, String]): Task[Unit]
@@ -61,7 +63,7 @@ trait AdminClient {
   def setConsumerGroupOffsetsToTimestamp(groupId: String, topic: String, timestamp: LocalDateTime, bootstrapServers: List[String], options: Option[AlterConsumerGroupOffsetsOptions] = None): ZIO[Consumer, Throwable, Unit]
 
   def metrics: Task[Map[MetricName, Metric]]
-  
+
   def close: Task[Unit]
 
 }
@@ -69,8 +71,8 @@ trait AdminClient {
 object AdminClient {
 
   private final case class LiveAdminClient(
-    private[client] val adminClient: JAdminClient
-  ) extends AdminClient {
+                                            private[client] val adminClient: JAdminClient
+                                          ) extends AdminClient {
 
     override def createTopics(newTopics: Iterable[NewTopic],
                               options: Option[CreateTopicsOptions] = None): Task[Unit] = {
@@ -81,7 +83,7 @@ object AdminClient {
           options
             .fold(adminClient.createTopics(asJava))(opts => adminClient.createTopics(asJava, opts.asJava))
             .all()
-          )
+        )
       }
     }
 
@@ -145,13 +147,13 @@ object AdminClient {
         )
       }.map(_.asScala.map(ConsumerGroupListing.apply))
 
-     override def listConsumerGroupOffsets(groupId: String, options: Option[ListConsumerGroupOffsetsOptions] = None): Task[Map[String, Map[TopicPartition, OffsetAndMetadata]]] =
-       fromKafkaFuture {
-         ZIO.attemptBlocking(
-           options.fold(adminClient.listConsumerGroupOffsets(groupId))(opts => adminClient.listConsumerGroupOffsets(groupId, opts)).all()
-         )
-       }.map(_.asScala.map(record => (record._1, record._2.asScala.toMap
-         .map(nested => (TopicPartition(nested._1.topic(), nested._1.partition()), OffsetAndMetadata(nested._2.offset(), nested._2.metadata()))))).toMap)
+    override def listConsumerGroupOffsets(groupId: String, options: Option[ListConsumerGroupOffsetsOptions] = None): Task[Map[String, Map[TopicPartition, OffsetAndMetadata]]] =
+      fromKafkaFuture {
+        ZIO.attemptBlocking(
+          options.fold(adminClient.listConsumerGroupOffsets(groupId))(opts => adminClient.listConsumerGroupOffsets(groupId, opts)).all()
+        )
+      }.map(_.asScala.map(record => (record._1, record._2.asScala.toMap
+        .map(nested => (TopicPartition(nested._1.topic(), nested._1.partition()), OffsetAndMetadata(nested._2.offset(), nested._2.metadata()))))).toMap)
 
     override def listConsumerGroupsOffsets(groupIds: Iterable[String], options: Option[ListConsumerGroupOffsetsOptions] = None): Task[Map[String, Map[TopicPartition, OffsetAndMetadata]]] =
       val asJava = groupIds.map(id => id -> new ListConsumerGroupOffsetsSpec).toMap.asJava
@@ -285,13 +287,35 @@ object AdminClient {
         ZIO.attemptBlocking(
           options.fold(adminClient.alterConsumerGroupOffsets(groupId, offset))(opts => adminClient.alterConsumerGroupOffsets(groupId, offset, opts)).all()
         )
-      }     
+      }
     } yield ()
+
+    def describeConsumerGroup(groupId: String): ZIO[Consumer, Throwable, Map[String, Map[TopicPartition, AggregatedOffsetDescription]]] = for {
+      consumer <- ZIO.service[Consumer]
+      currentOffsets <- listConsumerGroupOffsets(groupId)
+      currentOffsetsAsJava = currentOffsets.view.mapValues(_.map(rec => (rec._1.asJava, rec._2))).toMap
+      makeInput = currentOffsets.values.toSet.flatMap(_.keySet.map(_.asJava))
+      endOffsets <- consumer.endOffsets(makeInput)
+      toMap = Map(groupId -> endOffsets)
+      combined = (currentOffsetsAsJava.keySet ++ toMap.keySet).flatMap(k => {
+        (currentOffsetsAsJava.get(k), toMap.get(k)) match {
+          case (Some(current), Some(end)) =>
+            val nestedOffset = (current.keySet ++ end.keySet).flatMap(key => {
+              (current.get(key), end.get(key)) match {
+                case (Some(current), Some(end)) => Some(TopicPartition(key) -> AggregatedOffsetDescription(current.offset, end, end-current.offset, current.metadata))
+                case _ => None
+              }
+            })
+            Some(k -> nestedOffset.toMap)
+        }
+      }
+      ).toMap
+    } yield combined
 
     override def metrics: Task[Map[MetricName, Metric]] = ZIO.attemptBlocking(adminClient.metrics().asScala.toMap)
 
     override def close: Task[Unit] = ZIO.attemptBlocking(adminClient.close())
-    
+
   }
 
   case class NewTopic(name: String,
@@ -392,9 +416,9 @@ object AdminClient {
   }
 
   case class TopicDescription(name: String,
-  internal: Boolean,
-  partitions: List[TopicPartitionInfo],
-  authorizedOperations: Option[Set[AclOperation]])
+                              internal: Boolean,
+                              partitions: List[TopicPartitionInfo],
+                              authorizedOperations: Option[Set[AclOperation]])
 
   object TopicDescription {
     def apply(jt: JTopicDescription): TopicDescription = {
@@ -409,10 +433,10 @@ object AdminClient {
   }
 
   case class AggregatedTopicDescription(name: String,
-    internal: Boolean,
-    partitions: List[TopicPartitionInfo],
-    authorizedOperations: Option[Set[AclOperation]],
-    configs: Iterable[JConfigEntry]) {
+                                        internal: Boolean,
+                                        partitions: List[TopicPartitionInfo],
+                                        authorizedOperations: Option[Set[AclOperation]],
+                                        configs: Iterable[JConfigEntry]) {
     val mkString = s"Topic name: $name\nNumber of partitions: ${partitions.size}\nTopic configs:\n${configs.toList.sortBy(_.name()).map(rec => s"  ${rec.name()}=${rec.value()}").mkString("\n")}\nInternal status: $internal\nAuthorized operations info: ${authorizedOperations.map(_.mkString("\n"))}"
   }
 
@@ -529,6 +553,8 @@ object AdminClient {
       case JAlterConfigOp.OpType.SUBTRACT => Subtract
     }
   }
+
+  case class AggregatedOffsetDescription(currentOffset: Long, endOffset: Long, lag: Long, metadata: String)
 
   case class CreateTopicsOptions(validateOnly: Boolean) {
     lazy val asJava: JCreateTopicsOptions = new JCreateTopicsOptions().validateOnly(validateOnly)
